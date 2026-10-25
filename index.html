@@ -223,7 +223,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
         <div class="setup">
           <div class="field"><span class="lab">Schema di rima</span><div class="chips" id="scheme-chips"></div></div>
           <div class="field"><span class="lab">Aiuto</span><div class="chips" id="hint-chips"></div></div>
-          <div class="field"><span class="lab">Durata (barre da 4 battiti)</span><div class="chips" id="bars-chips"></div></div>
+          <div class="field"><span class="lab">Durata (barre da 4 battiti)</span><p class="note" style="margin:0 0 8px">Con ∞ non c'è un finale: giochi finché vuoi e premi Termina per vedere il punteggio.</p><div class="chips" id="bars-chips"></div></div>
         </div>
       </details>
       <div class="actions">
@@ -368,7 +368,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
   ];
   var SCHEMES = [['aabb', 'AABB'], ['aaaa', 'AAAA'], ['abab', 'ABAB'], ['abba', 'ABBA'], ['aaxx', 'AAXX'], ['axax', 'AXAX'], ['free', 'Libero']];
   var HINTS = [['full', 'Parola intera'], ['first', 'Prima lettera'], ['none', 'Solo colore']];
-  var BAR_OPTS = [8, 16, 32];
+  var BAR_OPTS = [8, 16, 32, 0];
 
   /* ---------- state ---------- */
   var cfg = { beat: 'boombap', topic: 'strada', tier: 'easy', scheme: 'aabb', hints: 'full', bars: 16, seed: 1 };
@@ -408,11 +408,12 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
   }
 
   /* ---------- word generation ---------- */
-  function generate(c) {
-    var r = mulberry(c.seed), n = c.bars;
+  var PATS = { aabb: 'aabb', abab: 'abab', abba: 'abba', aaxx: 'aaxx', axax: 'axax', free: null };
+  function makeGen(c) {
+    var r = mulberry(c.seed);
     var pool = FAMS.filter(function (f) { return c.topic === 'tutti' || f.tags.indexOf(c.topic) >= 0; });
     if (pool.length < 4) pool = FAMS;
-    var order = [], last = null;
+    var order = [], last = null, colorIdx = 0;
     function nextFam() {
       if (!order.length) {
         order = shuffle(pool, r);
@@ -427,26 +428,30 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
       if (!a || !a.length) { a = shuffle(f.words, r); queues.set(f, a); }
       return a.shift();
     }
-    var pats = { aabb: 'aabb', aaaa: new Array(n + 1).join('a'), abab: 'abab', abba: 'abba', aaxx: 'aaxx', axax: 'axax', free: null };
-    var out = [], colorOf = new Map();
-    function color(f) {
-      if (!colorOf.has(f)) colorOf.set(f, PALETTE[colorOf.size % PALETTE.length]);
-      return colorOf.get(f);
-    }
-    var pat = pats[c.scheme];
-    var i = 0;
-    while (i < n) {
-      if (!pat) { var f0 = nextFam(); out.push({ rest: false, fam: f0, word: word(f0), color: color(f0) }); i++; continue; }
-      var map = {};
-      for (var k = 0; k < pat.length && i < n; k++, i++) {
-        var L = pat[k];
-        if (L === 'x') { out.push({ rest: true }); continue; }
-        if (!map[L]) map[L] = nextFam();
-        var f = map[L];
-        out.push({ rest: false, fam: f, word: word(f), color: color(f) });
-      }
-    }
+    function pick() { return { fam: nextFam(), color: PALETTE[colorIdx++ % PALETTE.length] }; }
+    var pat = c.scheme === 'aaaa' ? new Array((c.bars || 16) + 1).join('a') : PATS[c.scheme];
+    var k = 0, map = {};
+    return function () {
+      var g;
+      if (!pat) { g = pick(); return { rest: false, fam: g.fam, word: word(g.fam), color: g.color }; }
+      if (k >= pat.length) { k = 0; map = {}; }
+      var L = pat[k++];
+      if (L === 'x') return { rest: true };
+      if (!map[L]) map[L] = pick();
+      g = map[L];
+      return { rest: false, fam: g.fam, word: word(g.fam), color: g.color };
+    };
+  }
+  function generate(c) {
+    var g = makeGen(c), out = [];
+    for (var i = 0; i < c.bars; i++) out.push(g());
     return out;
+  }
+  function endless() { return +cfg.bars === 0; }
+  var gen = null, seenN = 0;
+  function initBars(c) {
+    if (+c.bars === 0) { gen = makeGen(c); bars = []; for (var i = 0; i < 8; i++) bars.push(gen()); }
+    else { gen = null; bars = generate(c); }
   }
 
   /* ---------- audio ---------- */
@@ -585,7 +590,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
     };
   }
   function drawPreview() {
-    bars = generate(cfg);
+    initBars(cfg);
     curBar = 0; judged = [];
     renderRows(0);
     ball.style.opacity = 0;
@@ -604,10 +609,10 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
     $('#hud-beat').textContent = BEATS[cfg.beat].name + ' · ' + BEATS[cfg.beat].bpm + ' BPM';
     if (state === 'running') {
       var cur = Math.max(0, Math.min(bars.length, curBar + 1));
-      $('#hud-bar').textContent = 'Barra ' + cur + '/' + bars.length;
-      $('#hud-score').innerHTML = 'Rime <b>' + hits + '</b>/' + total + (streak > 1 ? ' · <span class="streak">serie ' + streak + '</span>' : '');
+      $('#hud-bar').textContent = 'Barra ' + cur + (endless() ? ' · illimitate' : '/' + bars.length);
+      $('#hud-score').innerHTML = 'Rime <b>' + hits + '</b>/' + (endless() ? seenN : total) + (streak > 1 ? ' · <span class="streak">serie ' + streak + '</span>' : '');
     } else {
-      $('#hud-bar').textContent = bars.length + ' barre';
+      $('#hud-bar').textContent = endless() ? 'Barre illimitate' : bars.length + ' barre';
       $('#hud-score').textContent = '';
     }
   }
@@ -624,12 +629,13 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
       return;
     }
     ov.hidden = true;
+    if (endless()) { while (bars.length < Math.floor(p / 4) + 8) bars.push(gen()); }
     var barNow = Math.min(bars.length - 1, Math.floor(p / 4));
     if (barNow !== curBar) { curBar = barNow; renderRows(curBar); lastI = -1; hud(); }
     /* misses */
-    for (var b = 0; b < bars.length; b++) {
+    for (var b = Math.max(0, barNow - 2); b <= barNow; b++) {
       if (judged[b] === undefined && !bars[b].rest && p > b * 4 + 3.75) {
-        judged[b] = 'miss'; streak = 0; if (b === curBar) markChip('miss');
+        judged[b] = 'miss'; seenN++; streak = 0; if (b === curBar) markChip('miss');
         flash('Mancata', 'var(--bad)'); hud();
       }
     }
@@ -650,7 +656,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
         row.querySelector('.chip').classList.toggle('pulse', i === 3);
       }
     }
-    if (p >= bars.length * 4) finish();
+    if (!endless() && p >= bars.length * 4) finish();
   }
 
   function press() {
@@ -662,7 +668,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
     var off = p - (cand * 4 + 3);
     if (Math.abs(off) > 0.75) { flash('Fuori battuta', 'var(--soft)'); return; }
     var ms = off * beatDur * 1000;
-    judged[cand] = 'hit'; offsets.push(Math.abs(ms)); hits++; streak++; bestStreak = Math.max(bestStreak, streak);
+    judged[cand] = 'hit'; seenN++; offsets.push(Math.abs(ms)); hits++; streak++; bestStreak = Math.max(bestStreak, streak);
     var a = Math.abs(off);
     var lab = a <= 0.15 ? 'Preciso' : (a <= 0.4 ? 'Quasi' : 'Fuori tempo');
     var col = a <= 0.15 ? 'var(--good)' : (a <= 0.4 ? 'var(--marker)' : 'var(--soft)');
@@ -674,17 +680,19 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
   function startGame() {
     ensureAudio();
     cfg.bars = +cfg.bars;
-    bars = generate(cfg);
-    total = bars.filter(function (b) { return !b.rest; }).length;
+    initBars(cfg);
+    total = endless() ? 0 : bars.filter(function (b) { return !b.rest; }).length;
+    seenN = 0;
     judged = []; offsets = []; hits = 0; streak = 0; bestStreak = 0; curBar = -1; lastI = -1; paused = false;
     var b = BEATS[cfg.beat];
     beatDur = 60 / b.bpm;
     latency = Math.min(0.25, (ctx.outputLatency || ctx.baseLatency || 0));
-    step = 0; endStep = (bars.length + 1) * 16;
+    step = 0; endStep = endless() ? Infinity : (bars.length + 1) * 16;
     t0 = ctx.currentTime + 0.12; nextT = t0;
     state = 'running';
     $('#setup').hidden = true; $('#result').hidden = true; $('#run-actions').hidden = false;
     $('#pausebtn').textContent = 'Pausa';
+    $('#stopbtn').textContent = endless() ? 'Termina e vedi punteggio' : 'Esci';
     renderRows(0);
     hud();
     lockScreen();
@@ -704,13 +712,14 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
   function finish() {
     stopAudio(); state = 'done';
     $('#overlay').hidden = true; $('#run-actions').hidden = true; ball.style.opacity = 0;
+    if (endless()) total = seenN;
     var ratio = total ? hits / total : 0;
     var avg = offsets.length ? Math.round(offsets.reduce(function (a, b) { return a + b; }, 0) / offsets.length) : null;
     $('#res-title').textContent = ratio >= 0.9 ? 'Pulito.' : (ratio >= 0.6 ? 'Ottimo flow.' : (ratio >= 0.3 ? 'Si sente il lavoro.' : 'Si riparte.'));
     $('#res-score').innerHTML = '<b>' + hits + '</b> / ' + total + ' rime · serie migliore ' + bestStreak + (avg !== null ? ' · scarto medio ' + avg + ' ms' : '');
     var w = $('#res-words'); w.textContent = '';
     bars.forEach(function (b, i) {
-      if (b.rest) return;
+      if (b.rest || judged[i] === undefined) return;
       var c = el('span', 'chip ' + (judged[i] === 'hit' ? 'hit' : 'miss'), b.word);
       c.style.background = b.color; w.appendChild(c);
     });
@@ -718,7 +727,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
     $('#result').hidden = false;
     saveStats();
     window.scrollTo({ top: Math.max(0, $('#gioca').offsetTop - 12), behavior: 'smooth' });
-    lastSummary = 'RimaFlow: ' + hits + '/' + total + ' rime · ' + BEATS[cfg.beat].name + ' · ' + cfg.bars + ' barre · serie ' + bestStreak + '\nCodice sfida: ' + makeCode();
+    lastSummary = 'RimaFlow: ' + hits + '/' + total + ' rime · ' + BEATS[cfg.beat].name + ' · ' + (endless() ? 'barre illimitate' : cfg.bars + ' barre') + ' · serie ' + bestStreak + '\nCodice sfida: ' + makeCode();
   }
   var lastSummary = '';
 
@@ -732,7 +741,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
       var ys = y.getFullYear() + '-' + (y.getMonth() + 1) + '-' + y.getDate();
       s.streak = s.last === ys ? s.streak + 1 : 1; s.last = t;
     }
-    s.bars += bars.length; s.runs += 1;
+    s.bars += endless() ? Math.max(0, curBar + 1) : bars.length; s.runs += 1;
     store(false, 'rimaflow.v1', s); showStats();
   }
   function showStats() {
@@ -756,7 +765,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
     if (!BEATS[p[0]] || !okTopic || !okScheme || !okHint || BAR_OPTS.indexOf(nb) < 0 || !seed) { msg.textContent = 'Codice non valido. Controlla di averlo copiato per intero.'; return; }
     cfg.beat = p[0]; cfg.topic = p[1]; cfg.scheme = p[2]; cfg.hints = p[3]; cfg.bars = nb; cfg.seed = seed; cfg.tier = '';
     syncUI(); drawPreview(); hud();
-    msg.textContent = 'Codice caricato: ' + BEATS[cfg.beat].name + ', ' + nb + ' barre. Premi Gioca.';
+    msg.textContent = 'Codice caricato: ' + BEATS[cfg.beat].name + ', ' + (nb ? nb + ' barre' : 'barre illimitate') + '. Premi Gioca.';
   }
   function copy(text, msgEl, okText) {
     function fallback() {
@@ -792,7 +801,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
       function (it) { return it.id === cfg.scheme; }, function (it) { cfg.scheme = it.id; cfg.tier = ''; reroll(false); syncUI(); });
     chipGroup($('#hint-chips'), HINTS.map(function (h) { return { id: h[0], label: h[1] }; }),
       function (it) { return it.id === cfg.hints; }, function (it) { cfg.hints = it.id; cfg.tier = ''; drawPreview(); syncUI(); });
-    chipGroup($('#bars-chips'), BAR_OPTS.map(function (n) { return { id: n, label: String(n) }; }),
+    chipGroup($('#bars-chips'), BAR_OPTS.map(function (n) { return { id: n, label: n ? String(n) : '∞ Illimitate' }; }),
       function (it) { return it.id === +cfg.bars; }, function (it) { cfg.bars = it.id; reroll(false); syncUI(); });
     $('#topic').value = cfg.topic;
     $('#code').value = makeCode();
@@ -865,7 +874,7 @@ footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1p
   $('#again').addEventListener('click', function () { reroll(true); startGame(); });
   $('#back').addEventListener('click', toSetup);
   $('#rerollbtn').addEventListener('click', function () { reroll(true); });
-  $('#stopbtn').addEventListener('click', toSetup);
+  $('#stopbtn').addEventListener('click', function () { if (state === 'running' && endless() && seenN > 0) finish(); else toSetup(); });
   $('#pausebtn').addEventListener('click', function () {
     if (!ctx || state !== 'running') return;
     if (!paused) { paused = true; ctx.suspend(); $('#pausebtn').textContent = 'Riprendi'; }
