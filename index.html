@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f0d14">
+<meta name="description" content="RimaFlow: gioco gratuito per allenare il freestyle in italiano. Beat, pallina a tempo, rime per desinenza e un rimario.">
+<meta property="og:title" content="RimaFlow">
+<meta property="og:description" content="RimaFlow: gioco gratuito per allenare il freestyle in italiano. Beat, pallina a tempo, rime per desinenza e un rimario.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f0d14'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23ffcf3d'/%3E%3C/svg%3E">
+<style>html{-webkit-text-size-adjust:100%}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>RimaFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=JetBrains+Mono:wght@500;700&family=Schibsted+Grotesk:wght@400;500;700;800&display=swap">
+<style>
+/* Layout: wordmark + one playable stage up top, rhyme dictionary (Rimario) below.
+   Single committed dark look: asphalt ground, marker-yellow action color, one color per rhyme family. */
+:root {
+  --ink: #0f0d14;
+  --road: #181520;
+  --road-2: #211d2b;
+  --line: #2f2a3b;
+  --paper: #f3efe6;
+  --soft: #aaa4b8;
+  --marker: #ffcf3d;
+  --good: #7fe08a;
+  --bad: #ff6b6b;
+  --f-display: "Dela Gothic One", "Arial Black", Impact, sans-serif;
+  --f-body: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+.wrap { max-width: 920px; margin: 0 auto; }
+a { color: var(--marker); }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--marker); outline-offset: 2px; }
+
+/* header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 16px; flex-wrap: wrap; }
+.brand { font-family: var(--f-display); font-size: 1.25rem; text-decoration: none; color: var(--paper); display: flex; align-items: center; gap: 10px; }
+.brand i { width: 14px; height: 14px; border-radius: 50%; background: var(--marker); display: inline-block; }
+.nav { display: flex; gap: 18px; font-size: .92rem; }
+.nav a { color: var(--soft); text-decoration: none; }
+.nav a:hover { color: var(--paper); }
+
+.hero { padding-block: 12px 20px; }
+.eyebrow { font-family: var(--f-mono); font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--soft); margin: 0 0 8px; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(2.6rem, 11vw, 5.2rem); line-height: .95; margin: 0 0 14px; text-wrap: balance; letter-spacing: -.01em; }
+h1 span { color: var(--marker); }
+.lead { max-width: 56ch; color: var(--soft); margin: 0; font-size: 1.05rem; }
+
+/* game card */
+.game { background: var(--road); border: 1px solid var(--line); border-radius: 18px; padding: 14px; display: grid; gap: 14px; }
+.hud { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; font-family: var(--f-mono); font-size: .8rem; color: var(--soft); min-height: 1.4em; }
+.hud b { color: var(--paper); font-weight: 700; }
+.hud .streak { color: var(--marker); }
+
+.stage { position: relative; background: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 46px 10px 10px; overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.road { display: grid; gap: 8px; }
+.row { display: grid; grid-template-columns: 1.6rem repeat(3, minmax(0, 1fr)) minmax(0, 1.9fr); gap: 8px; align-items: stretch; opacity: .5; }
+.row.active { opacity: 1; }
+.row .n { font-family: var(--f-mono); font-size: .72rem; color: var(--soft); align-self: center; text-align: center; }
+.cell { height: 46px; border-radius: 10px; background: var(--road-2); border: 1px solid var(--line); transition: background .08s, border-color .08s; }
+.cell.on { background: #3a3350; border-color: var(--paper); }
+.chip { display: flex; align-items: center; justify-content: center; min-height: 46px; border-radius: 10px; color: #14121a; font-weight: 800; font-size: 1.05rem; padding: 4px 8px; text-align: center; overflow-wrap: anywhere; line-height: 1.1; }
+.chip.rest { background: transparent; border: 1px dashed var(--line); color: var(--soft); font-weight: 500; font-size: .85rem; }
+.chip.pulse { transform: scale(1.06); box-shadow: 0 0 0 3px var(--paper); }
+.chip.hit { box-shadow: 0 0 0 3px var(--good); }
+.chip.miss { box-shadow: 0 0 0 3px var(--bad); opacity: .6; }
+.chip { transition: transform .08s; }
+.ball { position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--marker); box-shadow: 0 0 18px rgba(255, 207, 61, .55); pointer-events: none; opacity: 0; z-index: 3; }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(15, 13, 20, .72); z-index: 4; pointer-events: none; text-align: center; padding: 16px; }
+.overlay[hidden] { display: none; }
+.overlay .big { font-family: var(--f-display); font-size: clamp(3rem, 14vw, 6rem); line-height: 1; color: var(--marker); }
+.overlay .sub { color: var(--soft); font-size: .95rem; margin-top: 6px; }
+.verdict { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-family: var(--f-mono); font-weight: 700; font-size: .9rem; z-index: 5; pointer-events: none; opacity: 0; transition: opacity .15s; }
+.verdict.show { opacity: 1; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.actions[hidden] { display: none; }
+#run-actions { position: sticky; bottom: max(8px, env(safe-area-inset-bottom, 0px)); z-index: 6; background: var(--road); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+.btn { touch-action: manipulation; }
+.btn { border: 1px solid var(--line); background: var(--road-2); color: var(--paper); border-radius: 10px; padding: 10px 14px; cursor: pointer; min-height: 44px; }
+.btn:hover { border-color: var(--soft); }
+.btn.go { background: var(--marker); color: #1a1500; border-color: var(--marker); font-family: var(--f-display); font-size: 1.15rem; padding: 10px 28px; }
+.btn.go:hover { filter: brightness(1.06); }
+.btn.hitbtn { flex: 1 1 240px; background: var(--paper); color: #14121a; font-weight: 800; border-color: var(--paper); font-size: 1.05rem; min-height: 54px; }
+.btn.small { padding: 6px 12px; min-height: 36px; font-size: .88rem; }
+.btn[hidden] { display: none; }
+
+/* setup */
+.setup { display: grid; gap: 14px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.field label, .field .lab { display: block; font-family: var(--f-mono); font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); margin-bottom: 6px; }
+.select { width: 100%; background: var(--road-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.opt { border: 1px solid var(--line); background: var(--road-2); color: var(--paper); border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: .9rem; min-height: 36px; }
+.opt:hover { border-color: var(--soft); }
+.opt.on { background: var(--paper); color: #14121a; border-color: var(--paper); font-weight: 700; }
+.opt small { font-family: var(--f-mono); opacity: .7; margin-left: 4px; }
+details.more { border-top: 1px solid var(--line); padding-top: 12px; }
+details.more summary { cursor: pointer; color: var(--soft); font-size: .92rem; }
+details.more .setup { margin-top: 12px; }
+.daily { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.daily .btn { text-align: left; }
+.note { font-size: .85rem; color: var(--soft); margin: 0; max-width: 70ch; }
+.code-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.code-row input { flex: 1 1 220px; min-width: 0; background: var(--road-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-family: var(--f-mono); font-size: 16px; min-height: 44px; }
+
+/* results */
+.result { display: grid; gap: 14px; }
+.result[hidden] { display: none; }
+.result h2 { font-family: var(--f-display); font-weight: 400; font-size: clamp(1.8rem, 7vw, 2.8rem); margin: 0; line-height: 1; }
+.score { font-family: var(--f-mono); font-size: 1rem; color: var(--soft); }
+.score b { color: var(--marker); font-size: 1.6rem; }
+.words { display: flex; flex-wrap: wrap; gap: 6px; }
+.words .chip { min-height: 34px; font-size: .9rem; padding: 2px 10px; }
+.words .chip.hit { box-shadow: 0 0 0 2px var(--good); }
+.words .chip.miss { box-shadow: 0 0 0 2px var(--bad); opacity: .55; }
+
+/* sections */
+section.block { margin-top: 56px; }
+h2.sec { font-family: var(--f-display); font-weight: 400; font-size: clamp(1.6rem, 6vw, 2.4rem); line-height: 1; margin: 0 0 10px; text-wrap: balance; }
+.how { display: grid; gap: 10px; padding-left: 1.2rem; max-width: 62ch; color: var(--soft); margin: 12px 0 0; }
+.how b { color: var(--paper); }
+.finder { display: grid; gap: 12px; margin: 16px 0; }
+.finder input[type=search] { width: 100%; max-width: 420px; background: var(--road-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 46px; font-size: 1.05rem; }
+.found { background: var(--road); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 8px; }
+.found[hidden] { display: none; }
+.found h3 { margin: 0; font-family: var(--f-mono); font-size: .85rem; color: var(--marker); letter-spacing: .04em; }
+.fams { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 14px; }
+.fam { background: var(--road); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-width: 0; }
+.fam h3 { margin: 0 0 8px; font-family: var(--f-display); font-weight: 400; font-size: 1.5rem; color: var(--marker); }
+.fam p { margin: 0; color: var(--soft); font-size: .95rem; overflow-wrap: anywhere; }
+.fam .tg { margin-top: 10px; font-family: var(--f-mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: #7d7790; }
+footer { margin-top: 56px; color: var(--soft); font-size: .85rem; border-top: 1px solid var(--line); padding-top: 16px; }
+
+@media (max-width: 520px) {
+  .row { gap: 5px; grid-template-columns: 1.1rem repeat(3, minmax(0, 1fr)) minmax(0, 2fr); }
+  .cell { height: 40px; }
+  .chip { min-height: 40px; font-size: clamp(.78rem, 3.7vw, .98rem); padding: 4px 4px; }
+  .btn.go { flex: 1 1 100%; }
+  .nav { gap: 14px; }
+  .game { padding: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .cell, .chip, .verdict { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#gioca"><i></i>RimaFlow</a>
+    <nav class="nav" aria-label="Sezioni">
+      <a href="#gioca">Gioca</a>
+      <a href="#come">Come si gioca</a>
+      <a href="#rimario">Rimario</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <p class="eyebrow">Gioco gratuito di rime per il freestyle</p>
+    <h1>Rima a tempo.<br><span>In italiano.</span></h1>
+    <p class="lead">Segui la pallina. Quando atterra sulla parola colorata, dilla ad alta voce e chiudi la rima. Senza registrazione, funziona sul telefono.</p>
+  </div>
+
+  <main id="gioca" class="game" aria-label="Gioco">
+    <div class="hud" id="hud" aria-live="off">
+      <span id="hud-beat">Boom Bap · 90 BPM</span>
+      <span id="hud-bar"></span>
+      <span id="hud-score"></span>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="ball" id="ball"></div>
+      <div class="road" id="road"></div>
+      <div class="overlay" id="overlay" hidden><div><div class="big" id="ov-big"></div><div class="sub" id="ov-sub"></div></div></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+
+    <div class="actions" id="run-actions" hidden>
+      <button class="btn hitbtn" id="hitbtn" type="button">Rima detta · Spazio</button>
+      <button class="btn" id="pausebtn" type="button">Pausa</button>
+      <button class="btn" id="stopbtn" type="button">Esci</button>
+    </div>
+
+    <div class="setup" id="setup">
+      <div class="grid2">
+        <div class="field">
+          <span class="lab">Beat</span>
+          <div class="chips" id="beat-chips"></div>
+        </div>
+        <div class="field">
+          <label for="topic">Tema</label>
+          <select class="select" id="topic"></select>
+        </div>
+      </div>
+      <div class="field">
+        <span class="lab">Livello</span>
+        <div class="chips" id="tier-chips"></div>
+      </div>
+      <details class="more">
+        <summary>Opzioni: schema, aiuti, durata</summary>
+        <div class="setup">
+          <div class="field"><span class="lab">Schema di rima</span><div class="chips" id="scheme-chips"></div></div>
+          <div class="field"><span class="lab">Aiuto</span><div class="chips" id="hint-chips"></div></div>
+          <div class="field"><span class="lab">Durata (barre da 4 battiti)</span><div class="chips" id="bars-chips"></div></div>
+        </div>
+      </details>
+      <div class="actions">
+        <button class="btn go" id="playbtn" type="button">Gioca</button>
+        <button class="btn" id="rerollbtn" type="button">Nuove parole</button>
+      </div>
+      <div class="daily">
+        <button class="btn small" id="dailybtn" type="button">Sfida del giorno</button>
+        <span class="note" id="daily-desc"></span>
+      </div>
+      <div class="field">
+        <label for="code">Codice sfida: stesso beat, stesse parole</label>
+        <div class="code-row">
+          <input id="code" type="text" spellcheck="false" autocomplete="off" placeholder="incolla il codice di un amico">
+          <button class="btn small" id="loadcode" type="button">Carica</button>
+          <button class="btn small" id="copycode" type="button">Copia il mio</button>
+        </div>
+        <p class="note" id="code-msg" style="margin-top:6px"></p>
+      </div>
+      <p class="note">Il punteggio va sulla fiducia. Premi Spazio, o tocca lo schermo, nel momento in cui dici la rima. Il gioco misura quanto sei vicino al battito, non ascolta la tua voce.</p>
+      <p class="note" id="stats"></p>
+    </div>
+
+    <div class="result" id="result" hidden>
+      <h2 id="res-title">Nice.</h2>
+      <div class="score" id="res-score"></div>
+      <div class="words" id="res-words"></div>
+      <div class="actions">
+        <button class="btn go" id="again" type="button">Rigioca</button>
+        <button class="btn" id="copyscore" type="button">Copia punteggio</button>
+        <button class="btn" id="copycode2" type="button">Copia codice sfida</button>
+        <button class="btn" id="back" type="button">Cambia impostazioni</button>
+      </div>
+      <p class="note" id="res-msg"></p>
+    </div>
+  </main>
+
+  <section class="block" id="come">
+    <h2 class="sec">Come si gioca</h2>
+    <ol class="how">
+      <li><b>Scegli beat e tema.</b> Ogni barra dura quattro battiti: tre caselle e la parola.</li>
+      <li><b>Costruisci la barra.</b> La pallina rimbalza sulle caselle. Inventa una frase che finisca con la parola evidenziata.</li>
+      <li><b>Dilla sul quarto battito.</b> Quando la pallina atterra sulla parola, premi Spazio o tocca lo schermo mentre la pronunci. Stesso colore, stessa famiglia di rime.</li>
+    </ol>
+  </section>
+
+  <section class="block" id="rimario">
+    <h2 class="sec">Rimario</h2>
+    <p class="lead">Le famiglie di rime usate dal gioco, raggruppate per desinenza. Scrivi una parola e vedi con cosa fa rima.</p>
+    <div class="finder">
+      <label for="q" class="lab" style="font-family:var(--f-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--soft)">Cerca una rima</label>
+      <input id="q" type="search" placeholder="per esempio: amore" autocomplete="off" spellcheck="false">
+      <div class="found" id="found" hidden></div>
+      <div class="chips" id="fam-filter"></div>
+    </div>
+    <div class="fams" id="fams"></div>
+  </section>
+
+  <footer>RimaFlow è un progetto di allenamento al freestyle. Le rime sono raggruppate per desinenza a partire dall'ultima vocale accentata.</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+
+  /* ---------- data: rhyme families ---------- */
+  var TOPICS = [
+    ['tutti', 'Tutte le rime'], ['amore', 'Amore & cuore'], ['soldi', 'Soldi & successo'],
+    ['strada', 'Strada & quartiere'], ['festa', 'Festa & notte'], ['sogni', 'Sogni & ambizione'],
+    ['dolore', 'Dolore & mente'], ['quotidiano', 'Cibo & quotidiano'], ['potere', 'Potere & fama']
+  ];
+  var FAM_SRC = [
+    'ore|amore,dolore,potere|cuore amore dolore colore fiore calore sudore onore errore rumore signore sapore valore timore dottore motore tremore rancore favore splendore odore',
+    'ata|festa,quotidiano,strada|giornata serata risata chiamata fermata entrata strappata scappata sfumata nottata sfilata mangiata ubriacata passata bruciata',
+    'ita|amore,sogni,dolore|vita uscita ferita partita salita infinita finita sparita tradita gradita pulita svanita riuscita smarrita sfinita',
+    'ino|strada,quotidiano,sogni|destino cammino mattino vicino bambino vino giardino cuscino panino bottino casino assassino divino marino trampolino',
+    'ente|potere,quotidiano,dolore|gente niente mente presente ardente serpente corrente sorridente dolente parente assente potente evidente continente incidente innocente prudente vincente frequente differente',
+    'ento|dolore,sogni,potere|momento vento talento tormento lento spento argento accento cento sento contento convento strumento sentimento tradimento movimento pentimento cemento',
+    'anza|sogni,amore,dolore|speranza distanza danza mancanza stanza costanza lontananza abbondanza vacanza importanza sostanza usanza panza ignoranza alleanza fragranza arroganza',
+    'enza|strada,potere,dolore|pazienza differenza presenza coscienza esistenza violenza essenza partenza sentenza scienza coincidenza resistenza apparenza potenza influenza intelligenza conseguenza assenza adolescenza',
+    'ondo|sogni,strada,potere|mondo fondo profondo secondo rotondo biondo tondo rispondo nascondo confondo affondo vagabondo giocondo moribondo girotondo mappamondo',
+    'ale|festa,strada,potere|male reale normale mortale fatale locale morale finale ideale carnevale originale speciale ospedale capitale sociale uguale sale scale canale animale musicale rivale banale brutale personale',
+    'one|amore,soldi,potere,strada,festa|passione ragione canzone emozione azione nazione attenzione direzione illusione visione decisione missione prigione padrone bastone pallone leone cannone tallone mattone ladrone',
+    'etto|strada,quotidiano,soldi|ghetto letto petto progetto perfetto rispetto sospetto effetto difetto detto affetto diretto concetto maschietto biglietto ometto banchetto',
+    'oro|soldi,potere,sogni|oro tesoro lavoro coro loro ristoro decoro sonoro alloro adoro ignoro imploro',
+    'ura|dolore,sogni,strada|paura natura sicura cultura avventura sepoltura cintura misura bravura dura pura oscura figura cura struttura temperatura lettura',
+    'ello|strada,quotidiano,potere|fratello bello cervello coltello castello cappello modello anello uccello gemello quello cancello ombrello martello mantello novello',
+    'ella|amore,festa,quotidiano|stella bella sorella quella cappella ribella gazzella fontanella mortadella padella',
+    'ista|potere,festa,soldi|artista pista vista lista conquista rivista regista pianista chitarrista egoista ottimista pessimista dentista turista giornalista attivista cronista',
+    'ico|amore,strada|amico nemico antico mendico pudico fico dico',
+    'are|amore,festa,sogni,quotidiano|amare sognare cantare volare lottare giocare rimare parlare pensare ballare spaccare rubare lasciare pregare camminare sbagliare cercare trovare mangiare bruciare',
+    'ire|dolore,amore,strada,sogni|dire finire soffrire partire capire uscire morire sentire seguire fuggire ferire dormire servire tradire sparire vestire costruire ruggire apparire reagire',
+    'ere|quotidiano,sogni,potere|avere potere volere sapere vedere piacere cadere tenere godere bere sedere temere dovere mestiere bicchiere cavaliere quartiere',
+    'anto|amore,dolore,festa|canto pianto tanto santo incanto rimpianto quanto manto accanto intanto frattanto vanto',
+    'ando|sogni,festa,quotidiano|cantando sognando volando lottando ballando scappando tremando pensando parlando amando comando domando quando guardando sperando aspettando rimando',
+    'endo|dolore,sogni,quotidiano|correndo vendendo ridendo piangendo vivendo cadendo scrivendo dicendo facendo sapendo volendo vedendo tenendo perdendo vincendo crescendo ardendo tremendo stupendo orrendo',
+    'ia|amore,sogni,festa|follia magia malinconia armonia energia fantasia poesia allegria bugia nostalgia via mia pazzia gelosia ironia simpatia osteria polizia farmacia anarchia sia melodia euforia',
+    'ace|potere,amore,dolore|pace vorace fugace tenace audace piace tace face verace loquace mordace capace giace sagace fornace brace rapace',
+    'osa|amore,festa,quotidiano|cosa rosa sposa ansiosa preziosa nervosa famosa pericolosa misteriosa noiosa curiosa gelosa ombrosa rumorosa',
+    'osso|strada,potere,dolore|osso rosso grosso fosso scosso mosso commosso addosso colosso percosso riscosso promosso rimosso',
+    'ame|quotidiano,soldi,potere|fame rame esame sciame reclame brame legame salame bestiame reame ricame madame',
+    'ero|dolore,strada,sogni|nero vero pensiero sincero straniero intero mistero impero sentiero guerriero leggero severo cimitero zero spero',
+    'io|amore,dolore,sogni|addio io mio dio rio desio brusio zio pio mormorio ronzio brontolio ribollio',
+    'otto|strada,quotidiano,soldi|botto otto sotto rotto cotto dotto lotto motto giubbotto risotto biscotto condotto interrotto ricotto ghiotto',
+    'ezza|amore,dolore,sogni|bellezza certezza tristezza dolcezza debolezza ricchezza giovinezza fortezza carezza tenerezza ebbrezza grandezza saggezza stanchezza fierezza freschezza purezza lentezza durezza fermezza sicurezza larghezza lunghezza',
+    'atto|strada,soldi,potere|gatto fatto matto patto ratto piatto contatto atto soddisfatto ritratto astratto contratto disfatto esatto adatto riscatto baratto scatto',
+    'uta|dolore,quotidiano,strada|caduta venuta voluta saputa vissuta perduta creduta tenuta battuta cresciuta minuta bevuta veduta tuta muta aiuta saluta rifiuta assoluta ricevuta risoluta',
+    'uto|dolore,strada,potere|venuto saputo perduto voluto vissuto creduto tenuto cresciuto caduto bevuto battuto minuto aiuto saluto rifiuto muto astuto temuto goduto ricevuto risoluto assoluto tributo acuto cornuto conosciuto mantenuto',
+    'ina|amore,quotidiano,strada|mattina cucina bambina regina vetrina collina medicina spina rovina rapina divina marina benzina piscina cantina disciplina officina mina tendina',
+    'olo|dolore,sogni|solo volo suolo ruolo figliolo usignolo lenzuolo assolo consolo fagiolo stuolo paiolo',
+    'ato|strada,sogni,soldi|stato fato passato nato amato sbagliato sognato bruciato lasciato trovato dato cantato mercato soldato peccato risultato abbracciato incantato arrabbiato fortunato affamato innamorato dannato sposato buttato tornato scappato',
+    'erra|strada,potere,dolore|guerra terra serra afferra sotterra atterra sferra erra sottoterra Inghilterra rinserra disserra',
+    'ivo|potere,soldi,sogni|vivo cattivo positivo creativo negativo nativo attivo rivo privo schivo motivo decisivo offensivo impulsivo passivo ossessivo collettivo narrativo',
+    'ano|strada,festa,quotidiano|mano piano lontano strano umano sano vano villano cristiano italiano romano ruffiano sovrano profano nano grano',
+    'anno|dolore,strada,soldi|anno danno affanno inganno tiranno malanno panno vanno hanno sanno fanno stanno capodanno',
+    'ido|amore,dolore,strada|grido nido fido lido Cupido sfido uccido sorrido affido decido divido confido guido',
+    'ave|amore,strada,dolore|chiave grave soave nave ave suave cave trave conclave slave',
+    'ida|sogni,strada,dolore|sfida guida grida fida suicida omicida uccida decida divida confida sorrida',
+    'ola|sogni,quotidiano,festa|scuola parola sola vola cola ola mola gola viola pistola aiuola carriola consola',
+    'ante|amore,festa,potere|amante distante brillante diamante galante elefante gigante importante errante costante cantante comandante mercante vacante',
+    'esta|festa,strada,dolore|festa testa resta foresta richiesta protesta tempesta inchiesta pesta cresta onesta molesta funesta modesta lesta sesta gesta',
+    'ove|sogni,strada,quotidiano|nuove muove piove dove altrove nove prove commuove rimuove'
+  ];
+  var FAMS = FAM_SRC.map(function (s) {
+    var p = s.split('|');
+    return { end: p[0], tags: p[1].split(','), words: p[2].split(' ') };
+  });
+  var PALETTE = ['#ffcf3d', '#35d0f0', '#ff6f84', '#9be25a', '#b898ff', '#ff9a4d', '#4fe3b8', '#f27ad6'];
+
+  /* ---------- data: beats ---------- */
+  var BEATS = {
+    boombap: { name: 'Boom Bap', bpm: 90, kick: 'x..x......x.x...', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', roots: [33, 33, 29, 31], bass: 'sub', chords: null },
+    trap: { name: 'Trap', bpm: 140, kick: 'x.....x...x.....', snare: '........x.......', hat: 'x.x.x.x.x.x.xxxx', roots: [34, 34, 32, 29], bass: '808', chords: null },
+    lofi: { name: 'Lo-Fi', bpm: 78, kick: 'x.....x...x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.x.', roots: [33, 29, 36, 31], bass: 'sub', chords: [[57, 60, 64, 67], [53, 57, 60, 64], [60, 64, 67, 71], [55, 59, 62, 65]] },
+    reggaeton: { name: 'Reggaeton', bpm: 96, kick: 'x...x...x...x...', snare: '...x..x....x..x.', hat: 'x.x.x.x.x.x.x.x.', roots: [33, 33, 29, 31], bass: 'sub', chords: null },
+    afro: { name: 'Afro', bpm: 105, kick: 'x..x..x...x..x..', snare: '....x.......x...', hat: 'x.xxx.xxx.xxx.xx', roots: [31, 31, 28, 33], bass: 'sub', chords: [[55, 59, 62], [55, 59, 62], [52, 55, 59], [57, 60, 64]] }
+  };
+  var TIERS = [
+    ['easy', 'Facile', 'aabb', 'full'], ['medium', 'Medio', 'abab', 'full'],
+    ['hard', 'Difficile', 'abab', 'first'], ['expert', 'Esperto', 'free', 'none']
+  ];
+  var SCHEMES = [['aabb', 'AABB'], ['aaaa', 'AAAA'], ['abab', 'ABAB'], ['abba', 'ABBA'], ['aaxx', 'AAXX'], ['axax', 'AXAX'], ['free', 'Libero']];
+  var HINTS = [['full', 'Parola intera'], ['first', 'Prima lettera'], ['none', 'Solo colore']];
+  var BAR_OPTS = [8, 16, 32];
+
+  /* ---------- state ---------- */
+  var cfg = { beat: 'boombap', topic: 'strada', tier: 'easy', scheme: 'aabb', hints: 'full', bars: 16, seed: 1 };
+  var bars = [];
+  var state = 'idle';
+  var rng0 = function () { return Math.random(); };
+  cfg.seed = Math.floor(rng0() * 1e9) + 1;
+
+  /* ---------- helpers ---------- */
+  function mulberry(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function shuffle(arr, r) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(r() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function norm(w) { return w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, ''); }
+  function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) || 1; }
+  function store(get, key, val) {
+    try { if (get) return JSON.parse(localStorage.getItem(key)); localStorage.setItem(key, JSON.stringify(val)); } catch (e) { return null; }
+    return null;
+  }
+
+  /* ---------- word generation ---------- */
+  function generate(c) {
+    var r = mulberry(c.seed), n = c.bars;
+    var pool = FAMS.filter(function (f) { return c.topic === 'tutti' || f.tags.indexOf(c.topic) >= 0; });
+    if (pool.length < 4) pool = FAMS;
+    var order = [], last = null;
+    function nextFam() {
+      if (!order.length) {
+        order = shuffle(pool, r);
+        if (order[0] === last && order.length > 1) order.push(order.shift());
+      }
+      last = order.shift();
+      return last;
+    }
+    var queues = new Map();
+    function word(f) {
+      var a = queues.get(f);
+      if (!a || !a.length) { a = shuffle(f.words, r); queues.set(f, a); }
+      return a.shift();
+    }
+    var pats = { aabb: 'aabb', aaaa: new Array(n + 1).join('a'), abab: 'abab', abba: 'abba', aaxx: 'aaxx', axax: 'axax', free: null };
+    var out = [], colorOf = new Map();
+    function color(f) {
+      if (!colorOf.has(f)) colorOf.set(f, PALETTE[colorOf.size % PALETTE.length]);
+      return colorOf.get(f);
+    }
+    var pat = pats[c.scheme];
+    var i = 0;
+    while (i < n) {
+      if (!pat) { var f0 = nextFam(); out.push({ rest: false, fam: f0, word: word(f0), color: color(f0) }); i++; continue; }
+      var map = {};
+      for (var k = 0; k < pat.length && i < n; k++, i++) {
+        var L = pat[k];
+        if (L === 'x') { out.push({ rest: true }); continue; }
+        if (!map[L]) map[L] = nextFam();
+        var f = map[L];
+        out.push({ rest: false, fam: f, word: word(f), color: color(f) });
+      }
+    }
+    return out;
+  }
+
+  /* ---------- audio ---------- */
+  var ctx = null, master = null, noiseBuf = null, timer = null;
+  var nextT = 0, step = 0, t0 = 0, beatDur = 0, endStep = 0, latency = 0;
+  function ensureAudio() {
+    if (!ctx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      master = ctx.createGain(); master.gain.value = 0.85;
+      var comp = ctx.createDynamicsCompressor();
+      master.connect(comp); comp.connect(ctx.destination);
+      noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+      var d = noiseBuf.getChannelData(0);
+      for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+  }
+  function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function env(g, t, a, peak, dec) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec);
+  }
+  function kick(t, long) {
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(155, t);
+    o.frequency.exponentialRampToValueAtTime(long ? 42 : 48, t + 0.12);
+    env(g, t, 0.003, 1, long ? 0.5 : 0.32);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.7);
+  }
+  function snare(t) {
+    var s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = noiseBuf; f.type = 'highpass'; f.frequency.value = 1600;
+    env(g, t, 0.002, 0.55, 0.17);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.3);
+    var o = ctx.createOscillator(), og = ctx.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(210, t); o.frequency.exponentialRampToValueAtTime(130, t + 0.1);
+    env(og, t, 0.002, 0.5, 0.11);
+    o.connect(og); og.connect(master); o.start(t); o.stop(t + 0.2);
+  }
+  function hat(t, vel) {
+    var s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = noiseBuf; f.type = 'highpass'; f.frequency.value = 7500;
+    env(g, t, 0.001, vel, 0.045);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 0.1);
+  }
+  function bass(t, m, dur, kind) {
+    var o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    var fr = mtof(m);
+    f.type = 'lowpass'; f.frequency.value = kind === '808' ? 260 : 380;
+    if (kind === '808') {
+      o.type = 'sine';
+      o.frequency.setValueAtTime(fr * 1.6, t);
+      o.frequency.exponentialRampToValueAtTime(fr, t + 0.06);
+    } else {
+      o.type = 'triangle'; o.frequency.setValueAtTime(fr, t);
+    }
+    env(g, t, 0.01, kind === '808' ? 0.9 : 0.7, dur);
+    o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.1);
+  }
+  function chord(t, notes, dur) {
+    var g = ctx.createGain(), f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 1400;
+    env(g, t, 0.02, 0.16, dur);
+    f.connect(g); g.connect(master);
+    notes.forEach(function (m) {
+      var o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = mtof(m);
+      o.connect(f); o.start(t); o.stop(t + dur + 0.1);
+    });
+  }
+  function playStep(s, t) {
+    var b = BEATS[cfg.beat], i = s % 16, bar = Math.floor(s / 16), k = bar % 4;
+    if (b.kick[i] === 'x') {
+      kick(t, b.bass === '808');
+      bass(t, b.roots[k] + (b.bass === '808' ? 0 : 12), b.bass === '808' ? 0.55 : 0.28, b.bass);
+    }
+    if (b.snare[i] === 'x') snare(t);
+    if (b.hat[i] === 'x') hat(t, i % 4 === 0 ? 0.32 : 0.2);
+    if (b.chords) {
+      if (cfg.beat === 'lofi' && (i === 0 || i === 10)) chord(t, b.chords[k], 1.2);
+      if (cfg.beat === 'afro' && (i === 3 || i === 9 || i === 14)) chord(t, b.chords[k], 0.35);
+    }
+  }
+  function schedule() {
+    var sd = beatDur / 4;
+    while (step < endStep && nextT < ctx.currentTime + 0.18) {
+      playStep(step, nextT);
+      nextT += sd; step++;
+    }
+  }
+  function beatsNow() { return (ctx.currentTime - latency - t0) / beatDur - 4; }
+
+  /* ---------- stage rendering ---------- */
+  var road = $('#road'), ball = $('#ball'), stage = $('#stage');
+  var rowCache = null, curBar = -1, lastI = -1, judged = [], offsets = [], hits = 0, streak = 0, bestStreak = 0, total = 0;
+
+  function chipText(b) {
+    if (b.rest) return 'pausa';
+    if (cfg.hints === 'full') return b.word;
+    if (cfg.hints === 'first') return b.word.charAt(0).toUpperCase() + '···';
+    return '';
+  }
+  function makeRow(idx, active) {
+    var b = bars[idx];
+    var row = el('div', 'row' + (active ? ' active' : ''));
+    row.appendChild(el('span', 'n', String(idx + 1)));
+    for (var c = 0; c < 3; c++) row.appendChild(el('span', 'cell'));
+    var chip = el('div', 'chip' + (b.rest ? ' rest' : ''), chipText(b));
+    if (!b.rest) chip.style.background = b.color;
+    row.appendChild(chip);
+    return row;
+  }
+  function renderRows(start) {
+    road.textContent = '';
+    for (var i = start; i < Math.min(start + 6, bars.length); i++) road.appendChild(makeRow(i, i === start));
+    layoutBall();
+    var st = judged[start];
+    if (st) markChip(st);
+  }
+  function markChip(st) {
+    var chip = road.querySelector('.row.active .chip');
+    if (chip) chip.classList.add(st === 'miss' ? 'miss' : 'hit');
+  }
+  function layoutBall() {
+    var row = road.querySelector('.row.active');
+    if (!row) { rowCache = null; return; }
+    var sr = stage.getBoundingClientRect();
+    var cells = row.querySelectorAll('.cell'), chip = row.querySelector('.chip');
+    var els = [cells[0], cells[1], cells[2], chip];
+    var rr = row.getBoundingClientRect();
+    rowCache = {
+      xs: els.map(function (e) { var r = e.getBoundingClientRect(); return r.left - sr.left + r.width / 2; }),
+      top: rr.top - sr.top - 4
+    };
+  }
+  function drawPreview() {
+    bars = generate(cfg);
+    curBar = 0; judged = [];
+    renderRows(0);
+    ball.style.opacity = 0;
+  }
+
+  /* ---------- game loop ---------- */
+  var raf = 0, paused = false;
+  var verdictEl = $('#verdict'), verdictTimer = 0;
+  function flash(txt, color) {
+    verdictEl.textContent = txt; verdictEl.style.color = color || 'var(--paper)';
+    verdictEl.classList.add('show');
+    clearTimeout(verdictTimer);
+    verdictTimer = setTimeout(function () { verdictEl.classList.remove('show'); }, 700);
+  }
+  function hud() {
+    $('#hud-beat').textContent = BEATS[cfg.beat].name + ' · ' + BEATS[cfg.beat].bpm + ' BPM';
+    if (state === 'running') {
+      var cur = Math.max(0, Math.min(bars.length, curBar + 1));
+      $('#hud-bar').textContent = 'Barra ' + cur + '/' + bars.length;
+      $('#hud-score').innerHTML = 'Rime <b>' + hits + '</b>/' + total + (streak > 1 ? ' · <span class="streak">serie ' + streak + '</span>' : '');
+    } else {
+      $('#hud-bar').textContent = bars.length + ' barre';
+      $('#hud-score').textContent = '';
+    }
+  }
+  function frame() {
+    if (state !== 'running') return;
+    raf = requestAnimationFrame(frame);
+    var p = beatsNow();
+    var ov = $('#overlay');
+    if (p < 0) {
+      ov.hidden = false;
+      $('#ov-big').textContent = String(Math.ceil(-p));
+      $('#ov-sub').textContent = 'Pronti. Si parte sul prossimo giro.';
+      ball.style.opacity = 0;
+      return;
+    }
+    ov.hidden = true;
+    var barNow = Math.min(bars.length - 1, Math.floor(p / 4));
+    if (barNow !== curBar) { curBar = barNow; renderRows(curBar); lastI = -1; hud(); }
+    /* misses */
+    for (var b = 0; b < bars.length; b++) {
+      if (judged[b] === undefined && !bars[b].rest && p > b * 4 + 3.75) {
+        judged[b] = 'miss'; streak = 0; if (b === curBar) markChip('miss');
+        flash('Mancata', 'var(--bad)'); hud();
+      }
+    }
+    var pos = p - Math.floor(p / 4) * 4;
+    var i = Math.floor(pos), f = pos - i;
+    if (rowCache) {
+      var x = rowCache.xs[i] + (rowCache.xs[(i + 1) % 4] - rowCache.xs[i]) * f;
+      var y = rowCache.top - 26 * 4 * f * (1 - f);
+      ball.style.opacity = 1;
+      ball.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+    }
+    if (i !== lastI) {
+      lastI = i;
+      var row = road.querySelector('.row.active');
+      if (row) {
+        var cells = row.querySelectorAll('.cell');
+        for (var c = 0; c < 3; c++) cells[c].classList.toggle('on', c === i);
+        row.querySelector('.chip').classList.toggle('pulse', i === 3);
+      }
+    }
+    if (p >= bars.length * 4) finish();
+  }
+
+  function press() {
+    if (state !== 'running' || paused) return;
+    var p = beatsNow();
+    if (p < -0.5) return;
+    var cand = Math.round((p - 3) / 4);
+    if (cand < 0 || cand >= bars.length || bars[cand].rest || judged[cand] !== undefined) { flash('Fuori battuta', 'var(--soft)'); return; }
+    var off = p - (cand * 4 + 3);
+    if (Math.abs(off) > 0.75) { flash('Fuori battuta', 'var(--soft)'); return; }
+    var ms = off * beatDur * 1000;
+    judged[cand] = 'hit'; offsets.push(Math.abs(ms)); hits++; streak++; bestStreak = Math.max(bestStreak, streak);
+    var a = Math.abs(off);
+    var lab = a <= 0.15 ? 'Preciso' : (a <= 0.4 ? 'Quasi' : 'Fuori tempo');
+    var col = a <= 0.15 ? 'var(--good)' : (a <= 0.4 ? 'var(--marker)' : 'var(--soft)');
+    flash(lab + ' ' + (ms >= 0 ? '+' : '') + Math.round(ms) + ' ms', col);
+    if (cand === curBar) markChip('hit');
+    hud();
+  }
+
+  function startGame() {
+    ensureAudio();
+    cfg.bars = +cfg.bars;
+    bars = generate(cfg);
+    total = bars.filter(function (b) { return !b.rest; }).length;
+    judged = []; offsets = []; hits = 0; streak = 0; bestStreak = 0; curBar = -1; lastI = -1; paused = false;
+    var b = BEATS[cfg.beat];
+    beatDur = 60 / b.bpm;
+    latency = Math.min(0.25, (ctx.outputLatency || ctx.baseLatency || 0));
+    step = 0; endStep = (bars.length + 1) * 16;
+    t0 = ctx.currentTime + 0.12; nextT = t0;
+    state = 'running';
+    $('#setup').hidden = true; $('#result').hidden = true; $('#run-actions').hidden = false;
+    $('#pausebtn').textContent = 'Pausa';
+    renderRows(0);
+    hud();
+    lockScreen();
+    clearInterval(timer); timer = setInterval(schedule, 25); schedule();
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
+    updateCodeBox();
+  }
+  var wl = null;
+  function lockScreen() { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (l) { wl = l; }, function () {}); } catch (e) {} }
+  function unlockScreen() { try { if (wl) { wl.release(); wl = null; } } catch (e) {} }
+  function stopAudio() { unlockScreen(); clearInterval(timer); timer = null; cancelAnimationFrame(raf); if (ctx && ctx.state === 'suspended') ctx.resume(); }
+  function toSetup() {
+    stopAudio(); state = 'idle'; paused = false;
+    $('#overlay').hidden = true; $('#run-actions').hidden = true; $('#result').hidden = true; $('#setup').hidden = false;
+    drawPreview(); hud();
+  }
+  function finish() {
+    stopAudio(); state = 'done';
+    $('#overlay').hidden = true; $('#run-actions').hidden = true; ball.style.opacity = 0;
+    var ratio = total ? hits / total : 0;
+    var avg = offsets.length ? Math.round(offsets.reduce(function (a, b) { return a + b; }, 0) / offsets.length) : null;
+    $('#res-title').textContent = ratio >= 0.9 ? 'Pulito.' : (ratio >= 0.6 ? 'Ottimo flow.' : (ratio >= 0.3 ? 'Si sente il lavoro.' : 'Si riparte.'));
+    $('#res-score').innerHTML = '<b>' + hits + '</b> / ' + total + ' rime · serie migliore ' + bestStreak + (avg !== null ? ' · scarto medio ' + avg + ' ms' : '');
+    var w = $('#res-words'); w.textContent = '';
+    bars.forEach(function (b, i) {
+      if (b.rest) return;
+      var c = el('span', 'chip ' + (judged[i] === 'hit' ? 'hit' : 'miss'), b.word);
+      c.style.background = b.color; w.appendChild(c);
+    });
+    $('#res-msg').textContent = '';
+    $('#result').hidden = false;
+    saveStats();
+    window.scrollTo({ top: Math.max(0, $('#gioca').offsetTop - 12), behavior: 'smooth' });
+    lastSummary = 'RimaFlow: ' + hits + '/' + total + ' rime · ' + BEATS[cfg.beat].name + ' · ' + cfg.bars + ' barre · serie ' + bestStreak + '\nCodice sfida: ' + makeCode();
+  }
+  var lastSummary = '';
+
+  /* ---------- stats ---------- */
+  function today() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function saveStats() {
+    var s = store(true, 'rimaflow.v1') || { streak: 0, last: '', bars: 0, runs: 0 };
+    var t = today();
+    if (s.last !== t) {
+      var y = new Date(); y.setDate(y.getDate() - 1);
+      var ys = y.getFullYear() + '-' + (y.getMonth() + 1) + '-' + y.getDate();
+      s.streak = s.last === ys ? s.streak + 1 : 1; s.last = t;
+    }
+    s.bars += bars.length; s.runs += 1;
+    store(false, 'rimaflow.v1', s); showStats();
+  }
+  function showStats() {
+    var s = store(true, 'rimaflow.v1');
+    $('#stats').textContent = s && s.runs ? 'Giorni di fila: ' + s.streak + ' · barre giocate: ' + s.bars + ' · sessioni: ' + s.runs : '';
+  }
+
+  /* ---------- challenge code ---------- */
+  function makeCode() {
+    return [cfg.beat, cfg.topic, cfg.scheme, cfg.hints, cfg.bars, cfg.seed.toString(36)].join('.');
+  }
+  function updateCodeBox() { $('#code').value = makeCode(); }
+  function loadCode(str) {
+    var p = String(str).trim().split('.');
+    var msg = $('#code-msg');
+    if (p.length !== 6) { msg.textContent = 'Codice non valido. Deve avere sei parti separate da punti.'; return; }
+    var okTopic = TOPICS.some(function (t) { return t[0] === p[1]; });
+    var okScheme = SCHEMES.some(function (s) { return s[0] === p[2]; });
+    var okHint = HINTS.some(function (h) { return h[0] === p[3]; });
+    var nb = parseInt(p[4], 10), seed = parseInt(p[5], 36);
+    if (!BEATS[p[0]] || !okTopic || !okScheme || !okHint || BAR_OPTS.indexOf(nb) < 0 || !seed) { msg.textContent = 'Codice non valido. Controlla di averlo copiato per intero.'; return; }
+    cfg.beat = p[0]; cfg.topic = p[1]; cfg.scheme = p[2]; cfg.hints = p[3]; cfg.bars = nb; cfg.seed = seed; cfg.tier = '';
+    syncUI(); drawPreview(); hud();
+    msg.textContent = 'Codice caricato: ' + BEATS[cfg.beat].name + ', ' + nb + ' barre. Premi Gioca.';
+  }
+  function copy(text, msgEl, okText) {
+    function fallback() {
+      var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      msgEl.textContent = ok ? okText : 'Copia non riuscita. Seleziona il testo e copialo a mano: ' + text;
+    }
+    try {
+      navigator.clipboard.writeText(text).then(function () { msgEl.textContent = okText; }, fallback);
+    } catch (e) { fallback(); }
+  }
+
+  /* ---------- setup UI ---------- */
+  function chipGroup(host, items, getOn, onPick) {
+    host.textContent = '';
+    items.forEach(function (it) {
+      var b = el('button', 'opt' + (getOn(it) ? ' on' : ''));
+      b.type = 'button';
+      b.textContent = it.label;
+      if (it.small) { var s = el('small', null, it.small); b.appendChild(s); }
+      b.addEventListener('click', function () { onPick(it); });
+      host.appendChild(b);
+    });
+  }
+  function syncUI() {
+    chipGroup($('#beat-chips'), Object.keys(BEATS).map(function (k) { return { id: k, label: BEATS[k].name, small: String(BEATS[k].bpm) }; }),
+      function (it) { return it.id === cfg.beat; }, function (it) { cfg.beat = it.id; updateCodeBox(); syncUI(); hud(); });
+    chipGroup($('#tier-chips'), TIERS.map(function (t) { return { id: t[0], label: t[1], scheme: t[2], hints: t[3] }; }),
+      function (it) { return it.id === cfg.tier; }, function (it) { cfg.tier = it.id; cfg.scheme = it.scheme; cfg.hints = it.hints; reroll(false); syncUI(); });
+    chipGroup($('#scheme-chips'), SCHEMES.map(function (s) { return { id: s[0], label: s[1] }; }),
+      function (it) { return it.id === cfg.scheme; }, function (it) { cfg.scheme = it.id; cfg.tier = ''; reroll(false); syncUI(); });
+    chipGroup($('#hint-chips'), HINTS.map(function (h) { return { id: h[0], label: h[1] }; }),
+      function (it) { return it.id === cfg.hints; }, function (it) { cfg.hints = it.id; cfg.tier = ''; drawPreview(); syncUI(); });
+    chipGroup($('#bars-chips'), BAR_OPTS.map(function (n) { return { id: n, label: String(n) }; }),
+      function (it) { return it.id === +cfg.bars; }, function (it) { cfg.bars = it.id; reroll(false); syncUI(); });
+    $('#topic').value = cfg.topic;
+    $('#code').value = makeCode();
+  }
+  function reroll(newSeed) {
+    if (newSeed !== false) cfg.seed = Math.floor(Math.random() * 1e9) + 1;
+    drawPreview(); updateCodeBox(); hud();
+  }
+
+  /* daily mix */
+  function dailyCfg() {
+    var h = hash('rimaflow-' + today());
+    var r = mulberry(h);
+    var beats = Object.keys(BEATS), topics = TOPICS.slice(1), schemes = ['aabb', 'abab', 'abba', 'aaxx', 'free'];
+    return { beat: beats[Math.floor(r() * beats.length)], topic: topics[Math.floor(r() * topics.length)][0], scheme: schemes[Math.floor(r() * schemes.length)], hints: 'full', bars: 16, seed: h, tier: '' };
+  }
+  function dailyLabel(d) {
+    var tn = TOPICS.filter(function (t) { return t[0] === d.topic; })[0][1];
+    return BEATS[d.beat].name + ' × ' + tn + ' × ' + d.scheme.toUpperCase() + ' × 16 barre';
+  }
+
+  /* ---------- rimario ---------- */
+  var famFilter = 'tutti';
+  function renderFamFilter() {
+    var host = $('#fam-filter'); host.textContent = '';
+    TOPICS.forEach(function (t) {
+      var b = el('button', 'opt' + (famFilter === t[0] ? ' on' : ''), t[1]); b.type = 'button';
+      b.addEventListener('click', function () { famFilter = t[0]; renderFamFilter(); renderFams(); });
+      host.appendChild(b);
+    });
+  }
+  function topicName(id) { return TOPICS.filter(function (t) { return t[0] === id; })[0][1]; }
+  function renderFams() {
+    var host = $('#fams'); host.textContent = '';
+    FAMS.filter(function (f) { return famFilter === 'tutti' || f.tags.indexOf(famFilter) >= 0; }).forEach(function (f) {
+      var c = el('div', 'fam');
+      c.appendChild(el('h3', null, '-' + f.end));
+      c.appendChild(el('p', null, f.words.join(', ')));
+      c.appendChild(el('div', 'tg', f.tags.map(topicName).join(' · ')));
+      host.appendChild(c);
+    });
+  }
+  function findRhymes(raw) {
+    var host = $('#found'); var w = norm(raw);
+    if (!w) { host.hidden = true; return; }
+    var best = 0, res = [];
+    FAMS.forEach(function (f) {
+      var member = f.words.some(function (x) { return norm(x) === w; });
+      var ok = member || (f.end.length >= 3 && w.length > f.end.length && w.slice(-f.end.length) === f.end);
+      if (!ok) return;
+      var score = member ? 99 : f.end.length;
+      if (score > best) { best = score; res = [f]; } else if (score === best) res.push(f);
+    });
+    host.textContent = ''; host.hidden = false;
+    if (!res.length) {
+      host.appendChild(el('p', 'note', 'Nessuna famiglia trovata per "' + raw.trim() + '". Prova con l\'infinito del verbo o con la forma al singolare.'));
+      return;
+    }
+    res.forEach(function (f) {
+      host.appendChild(el('h3', null, 'FA RIMA CON -' + f.end.toUpperCase()));
+      host.appendChild(el('p', 'note', f.words.filter(function (x) { return norm(x) !== w; }).join(', ')));
+    });
+  }
+
+  /* ---------- wiring ---------- */
+  var topicSel = $('#topic');
+  TOPICS.forEach(function (t) { var o = document.createElement('option'); o.value = t[0]; o.textContent = t[1]; topicSel.appendChild(o); });
+  topicSel.addEventListener('change', function () { cfg.topic = topicSel.value; reroll(true); });
+  $('#playbtn').addEventListener('click', startGame);
+  $('#again').addEventListener('click', function () { reroll(true); startGame(); });
+  $('#back').addEventListener('click', toSetup);
+  $('#rerollbtn').addEventListener('click', function () { reroll(true); });
+  $('#stopbtn').addEventListener('click', toSetup);
+  $('#pausebtn').addEventListener('click', function () {
+    if (!ctx || state !== 'running') return;
+    if (!paused) { paused = true; ctx.suspend(); $('#pausebtn').textContent = 'Riprendi'; }
+    else { paused = false; ctx.resume(); $('#pausebtn').textContent = 'Pausa'; }
+  });
+  $('#hitbtn').addEventListener('pointerdown', function (e) { e.preventDefault(); press(); });
+  stage.addEventListener('pointerdown', function () { press(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.code !== 'Space' && e.key !== ' ') return;
+    var t = e.target && e.target.tagName;
+    if (state === 'running' && t !== 'INPUT' && t !== 'SELECT' && t !== 'TEXTAREA') {
+      e.preventDefault();
+      if (!e.repeat) press();
+    }
+  });
+  $('#dailybtn').addEventListener('click', function () {
+    var d = dailyCfg(); cfg.beat = d.beat; cfg.topic = d.topic; cfg.scheme = d.scheme; cfg.hints = d.hints; cfg.bars = d.bars; cfg.seed = d.seed; cfg.tier = '';
+    syncUI(); drawPreview(); hud(); startGame();
+  });
+  $('#loadcode').addEventListener('click', function () { loadCode($('#code').value); });
+  $('#code').addEventListener('keydown', function (e) { if (e.key === 'Enter') loadCode($('#code').value); });
+  $('#copycode').addEventListener('click', function () { copy(makeCode(), $('#code-msg'), 'Codice copiato. Mandalo a un amico.'); });
+  $('#copycode2').addEventListener('click', function () { copy(makeCode(), $('#res-msg'), 'Codice copiato. Mandalo a un amico.'); });
+  $('#copyscore').addEventListener('click', function () { copy(lastSummary, $('#res-msg'), 'Punteggio copiato.'); });
+  $('#q').addEventListener('input', function () { findRhymes(this.value); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && state === 'running' && !paused && ctx) { paused = true; ctx.suspend(); $('#pausebtn').textContent = 'Riprendi'; }
+  });
+  window.addEventListener('resize', function () { if (state === 'running' || state === 'idle') layoutBall(); });
+
+  /* ---------- boot ---------- */
+  function boot() {
+    cfg.scheme = 'aabb'; cfg.hints = 'full';
+    syncUI(); drawPreview(); hud(); showStats();
+    $('#daily-desc').textContent = dailyLabel(dailyCfg()) + ' · uguale per tutti, cambia ogni giorno';
+    renderFamFilter(); renderFams();
+  }
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(function () { if (state !== 'running') layoutBall(); }); }
+  boot();
+})();
+</script>
+</body>
+</html>
